@@ -1,7 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
@@ -14,8 +11,27 @@ public class PickUp : MonoBehaviour
 
     public PickUpType Type => type;
 
+    public event Action OnPickUp;
+
+    private SpriteRenderer _renderer;
+    private Collider2D _collider;
+
+
+    private void OnEnable()
+    {
+        GameLogicManager.Instance.OnLevelRestarted += OnLevelRestarted;
+    }
+
+    private void OnDisable()
+    {
+        GameLogicManager.Instance.OnLevelRestarted -= OnLevelRestarted;
+    }
+
     private void Start()
     {
+        _renderer = GetComponent<SpriteRenderer>();
+        _collider = GetComponent<Collider2D>();
+
         _tilemap = FindObjectOfType<Tilemap>();
 
         if (_tilemap)
@@ -29,6 +45,16 @@ public class PickUp : MonoBehaviour
 
     private void Update()
     {
+        if (Input.GetMouseButtonDown(1) && GameLogicManager.Instance.Phase is GamePhase.Layout)
+        {
+            if (_tilemap.WorldToCell(Camera.main.ScreenToWorldPoint(Input.mousePosition)) ==
+                _tilemap.WorldToCell(transform.position))
+            {
+                Destroy(gameObject);
+                OnPickUp?.Invoke();
+            }
+        }
+        
         if(!_car) return;
 
         if (Vector2.Distance(_car.transform.position, transform.position) < 0.1f)
@@ -86,7 +112,9 @@ public class PickUp : MonoBehaviour
             }
             
             _car.ResetPosition();
-            Destroy(gameObject);
+            _renderer.enabled = false;
+            _collider.enabled = false;
+            _car = null;
         }
     }
 
@@ -99,8 +127,15 @@ public class PickUp : MonoBehaviour
             _car = car;
         }
     }
-    
 
+
+    private void OnLevelRestarted()
+    {
+        _renderer.enabled = true;
+        _collider.enabled = true;
+        _car = null;
+    }
+    
     public enum PickUpType
     {
         UTurn,

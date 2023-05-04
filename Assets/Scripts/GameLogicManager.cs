@@ -12,6 +12,8 @@ public class GameLogicManager : MonoBehaviour
     public static GameLogicManager Instance { get; private set; }
     public GamePhase Phase { get; private set; }
 
+    public event Action OnLevelRestarted;
+    
     private void Awake()
     {
         if (Instance == null)
@@ -78,7 +80,9 @@ public class GameLogicManager : MonoBehaviour
 
     public void RestartLevel()
     {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        Phase = GamePhase.Layout;
+        OnPhaseChanged?.Invoke(Phase);
+        OnLevelRestarted?.Invoke();
     }
 
     public void NextLevel()

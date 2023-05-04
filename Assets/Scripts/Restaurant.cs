@@ -1,6 +1,4 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Tilemaps;
@@ -17,26 +15,39 @@ public class Restaurant : MonoBehaviour
     
     private Tilemap _tileMap;
     private RoadTile _nearestRoadTile;
-    
+
+    private Car _carInstance;
     // Start is called before the first frame update
     private void Start()
     {
         _tileMap = FindObjectOfType<Tilemap>();
         
-        var carObject = Instantiate(carPrefab);
+        GameLogicManager.Instance.OnLevelRestarted += OnLevelRestarted;
+        SpawnCar();
+    }
+
+    private void OnLevelRestarted()
+    {
+        Destroy(_carInstance.gameObject);
+        SpawnCar();
+    }
+
+    private void SpawnCar()
+    {
+        _carInstance = Instantiate(carPrefab);
         switch (playerStartPosition)
         {
             case SpawnPosition.Up:
-                carObject.transform.position = transform.position + (Vector3)Vector2.up * spawnOffset;
+                _carInstance.transform.position = transform.position + (Vector3)Vector2.up * spawnOffset;
                 break;
             case SpawnPosition.Down:
-                carObject.transform.position = transform.position + (Vector3)Vector2.down * spawnOffset;
+                _carInstance.transform.position = transform.position + (Vector3)Vector2.down * spawnOffset;
                 break;
             case SpawnPosition.Left:
-                carObject.transform.position = transform.position + (Vector3)Vector2.left * spawnOffset;
+                _carInstance.transform.position = transform.position + (Vector3)Vector2.left * spawnOffset;
                 break;
             case SpawnPosition.Right:
-                carObject.transform.position = transform.position + (Vector3)Vector2.right * spawnOffset;
+                _carInstance.transform.position = transform.position + (Vector3)Vector2.right * spawnOffset;
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -45,23 +56,23 @@ public class Restaurant : MonoBehaviour
         switch (carDirection)
         {
             case CarDirection.NorthBound:
-                carObject.transform.up = Vector2.up;
+                _carInstance.transform.up = Vector2.up;
                 break;
             case CarDirection.SouthBound:
-                carObject.transform.up = Vector2.down;
+                _carInstance.transform.up = Vector2.down;
                 break;
             case CarDirection.WestBound:
-                carObject.transform.up = Vector2.left;
+                _carInstance.transform.up = Vector2.left;
                 break;
             case CarDirection.EastBound:
-                carObject.transform.up = Vector2.right;
+                _carInstance.transform.up = Vector2.right;
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
         }
 
-        carObject.Direction = carDirection;
-        carObject.Tilemap = _tileMap;
+        _carInstance.Direction = carDirection;
+        _carInstance.Tilemap = _tileMap;
     }
 
 #if UNITY_EDITOR

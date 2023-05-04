@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using DG.Tweening;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
@@ -40,6 +41,7 @@ public class Car : MonoBehaviour
         _currentTilePosition = _tilemap.WorldToCell(transform.position);
         _currentRoadTile = _tilemap.GetTile<RoadTile>(_currentTilePosition);
         hasFlipped = true;
+        _startPos = transform.position;
     }
 
     private void Update()
@@ -177,6 +179,8 @@ public class Car : MonoBehaviour
         }
     }
 
+    private float _timer;
+    private Vector2 _startPos;
     // Update is called once per frame
     private void FixedUpdate()
     {
@@ -194,6 +198,15 @@ public class Car : MonoBehaviour
 
         _speed = maxSpeed;
         _rb.MovePosition(transform.position + transform.up * (Time.fixedDeltaTime * _speed));
+        
+        _timer += Time.fixedDeltaTime;
+        if (_timer >= 1.0)
+        {
+            print($"Car Moved {Vector2.Distance(_startPos, transform.position)} units in {_timer} seconds");
+            _timer = 0.0f;
+            _startPos = transform.position;
+        }
+        
     }
 
     private bool IsCloseToTileCenter()
@@ -246,7 +259,7 @@ public class Car : MonoBehaviour
     {
         _stopped = true;
 
-        yield return new WaitForSeconds(0.5f);
+        yield return new WaitForSeconds(0.6f);
 
         _stopped = false;
     }

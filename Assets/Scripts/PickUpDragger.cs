@@ -1,6 +1,5 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -15,8 +14,11 @@ public class PickUpDragger : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     private Sprite _pickupSprite;
     private Tilemap _tilemap;
     private RoadTile _roadTile;
-    
+
+    private bool _canPlace;
     private GameObject _ghost;
+    private Collider2D _ghostCollider;
+    private SpriteRenderer _ghostRenderer;
 
     private void Start()
     {
@@ -28,19 +30,24 @@ public class PickUpDragger : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
 
     public void OnBeginDrag(PointerEventData eventData)
     {
+        _canPlace = false;
         if(count <= 0) return;
         
         if (!_ghost)
         {
             _ghost = new GameObject();
-            var ghostRenderer = _ghost.AddComponent<SpriteRenderer>();
+            _ghostRenderer = _ghost.AddComponent<SpriteRenderer>();
+            var ghostCollider = _ghost.AddComponent<BoxCollider2D>();
+            ghostCollider.size = Vector2.one * 0.95f;
+
+            _ghostCollider = ghostCollider;
             
-            ghostRenderer.sprite = _pickupSprite;
-            ghostRenderer.sortingOrder = 2;
+            _ghostRenderer.sprite = _pickupSprite;
+            _ghostRenderer.sortingOrder = 2;
             
-            var halfAlpha = ghostRenderer.color;
+            var halfAlpha = _ghostRenderer.color;
             halfAlpha.a = 0.5f;
-            ghostRenderer.color = halfAlpha;
+            _ghostRenderer.color = halfAlpha;
         }
     }
 
@@ -65,24 +72,32 @@ public class PickUpDragger : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
                         or RoadTileType.ThreeWayLeft or RoadTileType.ThreeWayRight or RoadTileType.ThreeWayUp)
                     {
                         _ghost.transform.position = _tilemap.CellToWorld(mouseToGridPos) + _tilemap.tileAnchor;
+
+                        var contacts = new List<Collider2D>();
+                        _canPlace = _ghostCollider.GetContacts(contacts) == 0 || contacts.All(x => x.GetComponent<Goal>());
                     }
                     else
                     {
                         _ghost.transform.position = mousePosition;
+                        _canPlace = false;
                     }
                 }
                 else
                 {
                     _ghost.transform.position = _tilemap.CellToWorld(mouseToGridPos) + _tilemap.tileAnchor;
+                    
+                    var contacts = new List<Collider2D>();
+                    _canPlace = _ghostCollider.GetContacts(contacts) == 0 || contacts.All(x => x.GetComponent<Goal>()); ;
                 }
-                
-                
             }
             else
             {
                 _ghost.transform.position = mousePosition;
+                _canPlace = false;
             }
-
+            
+            if(!_canPlace) ChangeGhostColor(Color.red);
+            else ChangeGhostColor(Color.white);
         }
     }
 
@@ -90,19 +105,7 @@ public class PickUpDragger : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
     {
         if(count <= 0) return;
 
-        if (pickupPrefab.Type is PickUp.PickUpType.TurnDown or PickUp.PickUpType.TurnUp
-                or PickUp.PickUpType.TurnLeft or PickUp.PickUpType.TurnRight && (!_roadTile ||
-                _roadTile.tileType is not RoadTileType.FourWayJunction  
-                && _roadTile.tileType is not RoadTileType.ThreeWayDown
-                && _roadTile.tileType is not RoadTileType.ThreeWayRight 
-                && _roadTile.tileType is not RoadTileType.ThreeWayLeft 
-                && _roadTile.tileType is not RoadTileType.ThreeWayUp))
-        {
-            Destroy(_ghost);
-            return;
-        }
-
-        if (_roadTile)
+        if (_canPlace)
         {
             var pickUp = Instantiate(pickupPrefab);
             var pickUpPosition = _ghost.transform.position;
@@ -110,8 +113,20 @@ public class PickUpDragger : MonoBehaviour, IBeginDragHandler, IDragHandler, IEn
             pickUp.transform.position = pickUpPosition;
             count -= 1;
             countText.text = $"{count}";
+            pickUp.OnPickUp += OnSignPickUp;
         }
         
         Destroy(_ghost);
+    }
+
+    private void OnSignPickUp()
+    {
+        count += 1;
+        countText.text = $"{count}";
+    }
+    
+    private void ChangeGhostColor(Color color)
+    {
+        _ghostRenderer.color = new Color(color.r, color.g, color.b, _ghostRenderer.color.a);
     }
 }
