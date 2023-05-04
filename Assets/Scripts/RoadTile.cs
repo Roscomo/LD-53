@@ -19,4 +19,9 @@ public enum RoadTileType
     CornerDownLeft,
     CornerDownRight,
     FourWayJunction,
+    ThreeWayLeft,
+    ThreeWayRight,
+    ThreeWayUp,
+    ThreeWayDown,
+    DeadEnd
 }

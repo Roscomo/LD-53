@@ -7,13 +7,19 @@ using UnityEngine.Tilemaps;
 public class Car : MonoBehaviour
 {
     [SerializeField] private float maxSpeed;
-    [SerializeField] [Range(0, 1)] private float slowSpeed = 0.05f; 
-    
+    [SerializeField] private float slowSpeed = 0.05f;
+
     private Tilemap _tilemap;
     private RoadTile _currentRoadTile;
     private Vector3Int _currentTilePosition;
     private CarDirection _direction;
     private float _speed = 0.0f;
+    private bool _stopped;
+
+    private Rigidbody2D _rb;
+
+    private bool hasReset = false;
+    private bool hasFlipped = false;
     
     public CarDirection Direction
     {
@@ -30,26 +36,49 @@ public class Car : MonoBehaviour
     // Start is called before the first frame update
     private void Start()
     {
+        _rb = GetComponent<Rigidbody2D>();
         _currentTilePosition = _tilemap.WorldToCell(transform.position);
         _currentRoadTile = _tilemap.GetTile<RoadTile>(_currentTilePosition);
-
-        print(_tilemap.CellToWorld(_currentTilePosition));
+        hasFlipped = true;
     }
 
-    // Update is called once per frame
     private void Update()
     {
+        if(!_currentRoadTile) return;
 
-        if (_currentRoadTile is null || GameLogicManager.Instance.Phase is not GamePhase.PlayOut)
+        var close = IsCloseToTileCenter();
+
+
+        switch (_currentRoadTile.tileType)
         {
-            _speed = Mathf.Lerp(_speed, 0.0f, slowSpeed);
-            transform.Translate(Vector2.up * (Time.deltaTime * _speed));
-            return;
+            case RoadTileType.StraightHorizontal:
+            case RoadTileType.StraightVertical:
+            case RoadTileType.FourWayJunction:
+            case RoadTileType.ThreeWayLeft:
+            case RoadTileType.ThreeWayRight:
+            case RoadTileType.ThreeWayUp:
+            case RoadTileType.ThreeWayDown:
+                break;
+            case RoadTileType.CornerUpLeft:
+            case RoadTileType.CornerUpRight:
+            case RoadTileType.CornerDownLeft:
+            case RoadTileType.CornerDownRight:
+            case RoadTileType.DeadEnd:
+                if(close && !hasReset)
+                {
+                    var newPos = _tilemap.CellToWorld(_currentTilePosition) + _tilemap.tileAnchor;
+                    newPos.z = 0.0f;
+                    transform.position = newPos;
+                    hasReset = true;
+                }
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
         }
-
-        _speed = maxSpeed;
-        transform.Translate(Vector2.up * (Time.deltaTime * _speed));
-
+        
+        
+        
+        
         switch (_currentRoadTile.tileType)
         {
             case RoadTileType.StraightVertical:
@@ -57,61 +86,75 @@ public class Car : MonoBehaviour
             case RoadTileType.StraightHorizontal:
                 break;
             case RoadTileType.CornerUpLeft:
-                if (IsCloseToTileCenter())
+                if (close)
                 {
                     if (_direction is CarDirection.NorthBound)
                     {
                         ChangeDirection(CarDirection.WestBound);
                     }
-                    
+
                     else if (_direction is CarDirection.EastBound)
                     {
                         ChangeDirection(CarDirection.SouthBound);
                     }
                 }
+
                 break;
             case RoadTileType.CornerUpRight:
-                if (IsCloseToTileCenter())
+                if (close)
                 {
                     if (_direction is CarDirection.NorthBound)
                     {
                         ChangeDirection(CarDirection.EastBound);
                     }
-                    
+
                     else if (_direction is CarDirection.WestBound)
                     {
                         ChangeDirection(CarDirection.SouthBound);
                     }
                 }
+
                 break;
             case RoadTileType.CornerDownLeft:
-                if (IsCloseToTileCenter())
+                if (close)
                 {
                     if (_direction is CarDirection.SouthBound)
                     {
                         ChangeDirection(CarDirection.WestBound);
                     }
-                    
+
                     else if (_direction is CarDirection.EastBound)
                     {
                         ChangeDirection(CarDirection.NorthBound);
                     }
                 }
+
                 break;
             case RoadTileType.CornerDownRight:
-                if (IsCloseToTileCenter())
+                if (close)
                 {
                     if (_direction is CarDirection.SouthBound)
                     {
                         ChangeDirection(CarDirection.EastBound);
                     }
-                    
+
                     else if (_direction is CarDirection.WestBound)
                     {
                         ChangeDirection(CarDirection.NorthBound);
                     }
                 }
                 break;
+            case RoadTileType.DeadEnd:
+                if (close && !hasFlipped)
+                {
+                    hasFlipped = true;
+                    ReverseDirection();
+                }
+                break;
+            case RoadTileType.ThreeWayLeft:
+            case RoadTileType.ThreeWayRight:
+            case RoadTileType.ThreeWayUp:
+            case RoadTileType.ThreeWayDown:
             case RoadTileType.FourWayJunction:
                 break;
             default:
@@ -121,29 +164,45 @@ public class Car : MonoBehaviour
         var currentPosOnGrid = _tilemap.WorldToCell(transform.position);
         if (currentPosOnGrid != _currentTilePosition)
         {
-            
-            if (_currentRoadTile.currentCar == this)
-            {
-                _currentRoadTile.currentCar = null;
-            }
-
+            hasReset = false;
+            hasFlipped = false;
             _currentTilePosition = currentPosOnGrid;
             _currentRoadTile = _tilemap.GetTile<RoadTile>(_currentTilePosition);
 
-            if (_currentRoadTile && !_currentRoadTile.currentCar)
+            if (!_currentRoadTile && gameObject.CompareTag("Player"))
             {
-                _currentRoadTile.currentCar = this;
+                print("No Tile");
+                GameLogicManager.Instance.GameFailed();
             }
         }
+    }
+
+    // Update is called once per frame
+    private void FixedUpdate()
+    {
+        if (_stopped)
+        {
+            return;
+        }
+
+        if (_currentRoadTile is null || GameLogicManager.Instance.Phase is not GamePhase.PlayOut)
+        {
+            _speed = Mathf.Lerp(_speed, 0.0f, slowSpeed * Time.deltaTime);
+            _rb.MovePosition(transform.position + transform.up * (Time.fixedDeltaTime * _speed));
+            return;
+        }
+
+        _speed = maxSpeed;
+        _rb.MovePosition(transform.position + transform.up * (Time.fixedDeltaTime * _speed));
     }
 
     private bool IsCloseToTileCenter()
     {
         var tileWorldPos = _tilemap.CellToWorld(_currentTilePosition) + _tilemap.tileAnchor;
-        return Vector2.Distance(transform.position, tileWorldPos) < 0.01f;
+        return Vector2.Distance(transform.position, tileWorldPos) < 0.1f;
     }
 
-    private void ChangeDirection(CarDirection direction)
+    public void ChangeDirection(CarDirection direction)
     {
         _direction = direction;
 
@@ -177,12 +236,44 @@ public class Car : MonoBehaviour
                 throw new ArgumentOutOfRangeException();
         }
     }
+
+    public void Stop()
+    {
+        StartCoroutine(StopCoroutine());
+    }
+
+    private IEnumerator StopCoroutine()
+    {
+        _stopped = true;
+
+        yield return new WaitForSeconds(0.5f);
+
+        _stopped = false;
+    }
+
+    public void ResetPosition()
+    {
+        var newPos = _tilemap.CellToWorld(_currentTilePosition) + _tilemap.tileAnchor;
+        newPos.z = 0.0f;
+        transform.position = newPos;
+    }
+
+
+    private void OnCollisionEnter2D(Collision2D col)
+    {
+        if (col.gameObject.GetComponent<Car>() && GameLogicManager.Instance.Phase is GamePhase.PlayOut)
+        {
+            print("Failed");
+            GameLogicManager.Instance.GameFailed();
+        }
+    }
 }
 
-public enum CarDirection
-{
-    NorthBound,
-    SouthBound,
-    WestBound,
-    EastBound,
-}
+    public enum CarDirection
+    {
+        NorthBound,
+        SouthBound,
+        WestBound,
+        EastBound,
+    }
+

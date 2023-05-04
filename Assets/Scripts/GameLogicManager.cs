@@ -1,14 +1,12 @@
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 public class GameLogicManager : MonoBehaviour
 {
     private int _goalCount = 0;
-    
-    
+
+    [SerializeField] private bool _isThanksScreen = false;
     public event Action<GamePhase> OnPhaseChanged;
     
     public static GameLogicManager Instance { get; private set; }
@@ -29,14 +27,15 @@ public class GameLogicManager : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        Phase = GamePhase.Layout;
-        OnPhaseChanged?.Invoke(Phase);
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        
+        if (_isThanksScreen)
+        {
+            Phase = GamePhase.PlayOut;
+        }
+        else
+        {
+            Phase = GamePhase.Layout;
+            OnPhaseChanged?.Invoke(Phase);
+        }
     }
 
     public void RegisterGoal(Goal toRegister)
@@ -53,6 +52,20 @@ public class GameLogicManager : MonoBehaviour
         if (Phase is GamePhase.PlayOut && _goalCount <= 0)
         {
             Phase = GamePhase.Solved;
+
+            try
+            {
+                var nextLevelName = SceneUtility.GetScenePathByBuildIndex(SceneManager.GetActiveScene().buildIndex + 1);
+                var pathParts = nextLevelName.Split('/');
+                nextLevelName = pathParts[^1].Replace(".unity", "");
+
+                LevelManager.Instance.UnlockLevel(nextLevelName);
+            }
+            catch(Exception e)
+            {
+                Debug.LogException(e);
+            }
+
             OnPhaseChanged?.Invoke(Phase);
         }
     }
@@ -72,11 +85,23 @@ public class GameLogicManager : MonoBehaviour
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1);
     }
+
+    public void ExitToMain()
+    {
+        SceneManager.LoadScene(0);
+    }
+    
+    public void GameFailed()
+    {
+        Phase = GamePhase.Failed;
+        OnPhaseChanged?.Invoke(Phase);
+    }
 }
 
 public enum GamePhase
 {
     Layout,
     PlayOut,
-    Solved
+    Solved,
+    Failed
 }
